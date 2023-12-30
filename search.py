@@ -45,7 +45,7 @@ def job():
   genre = "1245"
   min = "0"
   max = "5000"
-  keyword = "オカムラ"
+  keyword = "okamura"
 
   encoded_keyword = quote(keyword)
   url = f"https://jmty.jp/{location}/sale-{category}/g-{genre}?min={min}&max={max}&keyword={encoded_keyword}"
@@ -70,7 +70,7 @@ def job():
       product_url = j.get("href")
       html_detail = urlopen(product_url)
       bs_detail = BeautifulSoup(html_detail, "html.parser")
-      text = bs_detail.find("p", {"class": "sc-wraf99-0 bhfKek"}).get_text()
+      # text = bs_detail.find("p", {"class": "sc-wraf99-0 bhfKek"}).get_text()
       data = pd.Series([title, price, favorite, product_url], index=df_main.columns)
       df_main = pd.concat([df_main, pd.DataFrame([data])], ignore_index=True)
 
