@@ -1,5 +1,6 @@
 import json
 import time
+from urllib.parse import quote
 from urllib.request import urlopen
 
 import gspread
@@ -17,39 +18,39 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 
 def job():
-  df_main = pd.DataFrame(columns=["タイトル", "価格", "お気に入り数", "内容", "URL"])
-  '''
-  地域を指定
-  > tokyo, kanagawa, saitama, chiba, ibaraki, tochigi, gunma
-  '''
-  location = "tokyo"
+  df_main = pd.DataFrame(columns=["タイトル", "価格", "お気に入り数", "URL"])
 
+  ##########################################################
   '''
-  カテゴリーを指定
-  > 家具 = fur, 家電 = ele, 自転車 = bic
-  '''
-  category = ""
+  地域を指定：
+  all, tokyo, kanagawa, saitama, chiba, ibaraki, tochigi, gunma
 
-  '''
-  ジャンルを指定
+  カテゴリーを指定：
+  家具 = fur, 家電 = ele, 自転車 = bic
+
+  ジャンルを指定：
   寝具 = 1227, ベッド = 1236, 椅子 = 1245, テーブル = 1245,
   掃除機 = 1086, 洗濯機 = 1087, 冷蔵庫 = 1103, 電子レンジ = 1104, 炊飯器 = 1107,
-  '''
-  genre = ""
 
+  価格範囲を指定：
+  最低価格 = min, 最高価格 = max
 
+  キーワードを指定（２つ以上の場合は+でつなぐ）：
+  panasonic+toshiba
   '''
-  価格範囲を指定 最低価格 = min, 最高価格 = max
-  '''
-  min = ""
-  max = ""
+  ##########################################################
 
-  '''
-  キーワードを指定 ２つ以上の場合は+でつなぐ
-  '''
-  keyword = ""
+  location = "tokyo"
+  category = "fur"
+  genre = "1245"
+  min = "0"
+  max = "5000"
+  keyword = "オカムラ"
 
-  url = "https://jmty.jp/" + location + "/sale-" + category + "g-" + genre + "?min=" + min + "&max=" + max + "&keyword=" + keyword
+  encoded_keyword = quote(keyword)
+  url = f"https://jmty.jp/{location}/sale-{category}/g-{genre}?min={min}&max={max}&keyword={encoded_keyword}"
+  print("Gerated URL:", url)
+
   html = urlopen(url)
   bs = BeautifulSoup(html, "html.parser")
   # last_page = bs.findAll("li", {"class": "last"}).get_text()
@@ -70,7 +71,7 @@ def job():
       html_detail = urlopen(product_url)
       bs_detail = BeautifulSoup(html_detail, "html.parser")
       text = bs_detail.find("p", {"class": "sc-wraf99-0 bhfKek"}).get_text()
-      data = pd.Series([title, price, favorite, text, product_url], index=df_main.columns)
+      data = pd.Series([title, price, favorite, product_url], index=df_main.columns)
       df_main = pd.concat([df_main, pd.DataFrame([data])], ignore_index=True)
 
   # Googleスプレッドシートの設定とデータの書き込み
