@@ -17,7 +17,6 @@ load_dotenv()
 
 
 def job():
-    df_main = pd.DataFrame(columns=["タイトル", "価格", "お気に入り数", "商品URL"])
     # 以前のデータを保存するファイル
     previous_data_file = "previous_data.json"
 
@@ -54,7 +53,7 @@ def job():
     genre = "1255"
     min = "0"
     max = "10000"
-    keyword = "机"
+    keyword = "テーブル"
 
     encoded_keyword = quote(keyword)
     url = f"https://jmty.jp/{location}/sale-{category}/g-{genre}?min={min}&max={max}&keyword={encoded_keyword}"
@@ -74,7 +73,7 @@ def job():
         if favorite_element:
             favorite = favorite_element.get_text().strip()
         else:
-            favorite = "受付終了"
+            favorite = "0"
         product_url = item.find("div", {"class": "p-item-title"}).find("a").get("href")
 
         # 新しい商品のみを処理
@@ -90,9 +89,7 @@ def job():
 
     # 新しい商品がある場合のみ処理
     if new_items:
-        df_main = pd.concat([df_main, pd.DataFrame(new_items)], ignore_index=True)
-
-        # Googleスプレッドシートの設定とデータの書き込み
+        # Googleスプレッドシートの設定
         try:
             scope = [
                 "https://spreadsheets.google.com/feeds",
@@ -105,7 +102,20 @@ def job():
             gc = gspread.authorize(credentials)
             secret_key = os.environ.get("SPREADSHEET_KEY")
             worksheet = gc.open_by_key(secret_key).sheet1
-            set_with_dataframe(worksheet, df_main, resize=True, include_index=True)
+
+            # 新しいデータをDataFrameに変換
+            new_data_df = pd.DataFrame(new_items)
+
+            # 既存のスプレッドシートデータの読み込み
+            existing_data = get_as_dataframe(worksheet)  # 最初の行を列名として使用
+            existing_data = existing_data.dropna(how="all")  # 完全に空の行を削除
+            existing_data = existing_data[["タイトル", "価格", "お気に入り数", "商品URL"]]  # 必要な列のみ保持
+
+            # 新しいデータを既存のデータの上に追加
+            updated_data = pd.concat([new_data_df, existing_data], ignore_index=True)
+
+            # スプレッドシートの更新
+            set_with_dataframe(worksheet, updated_data, resize=True, include_index=True)
         except gspread.SpreadsheetNotFound:
             print("スプレッドシートが見つかりません。IDを確認してください。")
         except Exception as e:
