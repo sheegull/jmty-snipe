@@ -29,7 +29,7 @@ def job():
   家具 = fur, 家電 = ele, 自転車 = bic
 
   ジャンルを指定：
-  寝具 = 1227, ベッド = 1236, 椅子 = 1245, テーブル = 1245,
+  寝具 = 1227, ベッド = 1236, 椅子 = 1245, テーブル = 1255,
   掃除機 = 1086, 洗濯機 = 1087, 冷蔵庫 = 1103, 電子レンジ = 1104, 炊飯器 = 1107,
 
   価格範囲を指定：
@@ -40,12 +40,12 @@ def job():
   '''
   ##########################################################
 
-  location = "tokyo"
+  location = "all"
   category = "fur"
-  genre = "1245"
+  genre = "1255"
   min = "0"
-  max = "5000"
-  keyword = "okamura"
+  max = "10000"
+  keyword = "flexispot"
 
   encoded_keyword = quote(keyword)
   url = f"https://jmty.jp/{location}/sale-{category}/g-{genre}?min={min}&max={max}&keyword={encoded_keyword}"
