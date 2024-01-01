@@ -54,7 +54,7 @@ def job():
     genre = "1255"
     min = "0"
     max = "10000"
-    keyword = "ニトリ"
+    keyword = "テーブル"
 
     encoded_keyword = quote(keyword)
     url = f"https://jmty.jp/{location}/sale-{category}/g-{genre}?min={min}&max={max}&keyword={encoded_keyword}"
@@ -116,7 +116,7 @@ def job():
             url = "https://notify-api.line.me/api/notify"  # 正しいAPIエンドポイント
             access_token = os.environ.get("LINE_TOKEN")
             headers = {"Authorization": "Bearer " + access_token}
-            message = f"\n {keyword}の新着情報です。\n {product_url} \n 一覧はこちら \n https://x.gd/9UIAz"
+            message = f"\n {keyword}の新着情報です。\n {title}\n {price}\n {product_url}\n 一覧はこちら \n https://x.gd/9UIAz"
             params = {"message": message}
             r = requests.post(url, headers=headers, params=params)
         except Exception as e:
