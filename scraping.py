@@ -62,14 +62,14 @@ def update_spreadsheet(worksheet, new_items, previous_items):
 
 def send_line_notify(keyword, new_items, token):
     """LINEに通知を送る"""
-    if new_items:
-        latest_item = new_items[0]
-        message = f"\n{keyword}新着情報: {latest_item['タイトル']}\n価格: {latest_item['価格']}\nURL: {latest_item['商品URL']}\n一覧: https://x.gd/9UIAz"
+    for item in new_items:
+        message = f"\n{keyword}の新着情報:\n{item['タイトル']}\n価格: {item['価格']}\nURL: {item['商品URL']}\n一覧: https://x.gd/9UIAz"
         requests.post(
             "https://notify-api.line.me/api/notify",
             headers={"Authorization": "Bearer " + token},
             params={"message": message},
         )
+        time.sleep(1)  # LINEのAPI制限に引っかからないように1秒間隔をあける
 
 
 """条件設定例
@@ -106,9 +106,10 @@ def job():
     encoded_keyword = quote(keyword)
     url = f"https://jmty.jp/{location}/sale-{category}/g-{genre}?min={min}&max={max}&keyword={encoded_keyword}"
     bs = fetch_data(url)
-    new_items = [
-        item for item in scrape_items(bs) if item["商品URL"] not in previous_data
-    ]
+    scraped_items = scrape_items(bs)
+
+    # previous_dataにない商品のみを新しい商品として扱う
+    new_items = [item for item in scraped_items if item["商品URL"] not in previous_data]
 
     if new_items:
         try:
@@ -122,14 +123,17 @@ def job():
             gc = gspread.authorize(credentials)
             worksheet = gc.open_by_key(os.environ.get("SPREADSHEET_KEY")).sheet1
             update_spreadsheet(worksheet, new_items, previous_data)
+            # LINE Notifyに新しい商品の情報を送る
             send_line_notify(keyword, new_items, os.environ.get("LINE_TOKEN"))
+            # previous_dataを更新し、新しい商品の情報を含める
+            for item in new_items:
+                previous_data[item["商品URL"]] = item
         except Exception as e:
             print(f"エラー発生: {e}")
 
+        # 更新されたprevious_dataをファイルに保存
         with open("previous_data.json", "w") as file:
-            json.dump(
-                {item["商品URL"]: item for item in new_items}, file, ensure_ascii=False
-            )
+            json.dump(previous_data, file, ensure_ascii=False)
 
 
 schedule.every(1).minutes.do(job)
