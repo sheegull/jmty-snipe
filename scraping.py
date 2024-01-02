@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from datetime import datetime
 from urllib.parse import quote
 from urllib.request import urlopen
 
@@ -31,6 +32,9 @@ def scrape_items(bs):
         price = item.find("div", {"class": "p-item-most-important"}).get_text().strip()
         location_element = item.find("div", {"class": "p-item-secondary-important"})
         location = location_element.get_text().strip() if location_element else "不明"
+        date_element = item.find("div", {"class": "u-color-gray"})
+        date_text = date_element.get_text().strip() if date_element else "不明"
+        date = date_text.replace("作成", "").strip()  # "作成"という単語を取り除く
         favorite_element = item.find("span", {"class": "u-size-s js_fav_user_count"})
         favorite = favorite_element.get_text().strip() if favorite_element else "0"
         product_url = item.find("div", {"class": "p-item-title"}).find("a").get("href")
@@ -38,6 +42,7 @@ def scrape_items(bs):
             {
                 "タイトル": title,
                 "価格": price,
+                "出品日": date,
                 "取引場所": location,
                 "お気に入り数": favorite,
                 "商品URL": product_url,
@@ -59,19 +64,22 @@ def update_spreadsheet(worksheet, new_items, previous_items):
     new_data_df = pd.DataFrame(new_items)
     existing_data = get_as_dataframe(worksheet)
     if existing_data is None or existing_data.empty:
-        existing_data = pd.DataFrame(columns=["タイトル", "価格", "取引場所", "お気に入り数", "商品URL"])
+        existing_data = pd.DataFrame(
+            columns=["タイトル", "価格", "出品日", "取引場所", "お気に入り数", "商品URL"]
+        )
     else:
         existing_data = existing_data.dropna(how="all", axis="columns")
     updated_data = pd.concat([new_data_df, existing_data], ignore_index=True)
-    updated_data = updated_data[["タイトル", "価格", "取引場所", "お気に入り数", "商品URL"]]
+    updated_data = updated_data[["タイトル", "価格", "出品日", "取引場所", "お気に入り数", "商品URL"]]
     set_with_dataframe(worksheet, updated_data, resize=True, include_index=True)
     return updated_data
 
 
 def send_line_notify(keyword, new_items, token):
     """LINEに通知を送る"""
+    current_year = datetime.now().year  # 現在の年を取得
     for item in new_items:
-        message = f"\n{keyword}の新着情報:\n{item['タイトル']}\n価格: {item['価格']}\n取引場所: {item['取引場所']}\nURL: {item['商品URL']}\n一覧: https://x.gd/9UIAz"
+        message = f"\n{keyword}の新着情報:\n{item['タイトル']}\n価格: {item['価格']}\n出品日: {current_year}年{item['出品日']}\n取引場所: {item['取引場所']}\nURL: {item['商品URL']}\n一覧: https://x.gd/9UIAz"
         requests.post(
             "https://notify-api.line.me/api/notify",
             headers={"Authorization": "Bearer " + token},
