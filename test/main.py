@@ -1,57 +1,27 @@
 import json
 import os
 import time
-import tracemalloc
 from datetime import datetime
 from urllib.parse import quote
 from urllib.request import urlopen
 
 import pandas as pd
 import requests
-import schedule
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
+from google.cloud import storage
 from gspread import service_account
 from gspread_dataframe import get_as_dataframe, set_with_dataframe
 
-load_dotenv()
+# Cloud Storageのクライアントを初期化
+storage_client = storage.Client()
 
 
-# 実行時間を測定するための関数
-def measure_execution_time(func):
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        end_time = time.time()
-        print(f"Execution time of '{func.__name__}': {end_time - start_time} seconds")
-        return result
-
-    return wrapper
-
-
-# メモリ使用量を測定するための関数
-def measure_memory_usage(func):
-    def wrapper(*args, **kwargs):
-        tracemalloc.start()
-        result = func(*args, **kwargs)
-        current, peak = tracemalloc.get_traced_memory()
-        print(f"Current memory usage of '{func.__name__}': {current / 1024}KB; Peak was: {peak / 1024}KB")
-        tracemalloc.stop()
-        return result
-
-    return wrapper
-
-
-# @measure_execution_time
-@measure_memory_usage
 def fetch_data(url):
     """指定されたURLからデータを取得し、解析する"""
     response = urlopen(url)
     return BeautifulSoup(response, "html.parser")
 
 
-# @measure_execution_time
-@measure_memory_usage
 def scrape_items(bs):
     """商品情報をスクレイピングする"""
     items = []
@@ -80,18 +50,22 @@ def scrape_items(bs):
     return items
 
 
-# @measure_execution_time
-@measure_memory_usage
-def load_previous_data(filename):
-    """以前のデータをファイルから読み込む"""
-    if os.path.exists(filename):
-        with open(filename, "r") as file:
-            return json.load(file)
+def load_previous_data(bucket_name, filename):
+    """Cloud Storageから以前のデータを読み込む"""
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(filename)
+    if blob.exists():
+        return json.loads(blob.download_as_string())
     return {}
 
 
-# @measure_execution_time
-@measure_memory_usage
+def save_previous_data(bucket_name, filename, data):
+    """Cloud Storageにデータを保存する"""
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(filename)
+    blob.upload_from_string(json.dumps(data, ensure_ascii=False))
+
+
 def update_spreadsheet(worksheet, new_items, previous_items):
     """スプレッドシートを更新する"""
     new_data_df = pd.DataFrame(new_items)
@@ -108,8 +82,6 @@ def update_spreadsheet(worksheet, new_items, previous_items):
     return updated_data
 
 
-# @measure_execution_time
-@measure_memory_usage
 def send_line_notify(keyword, new_items, token):
     """LINEに通知を送る"""
     current_year = datetime.now().year  # 現在の年を取得
@@ -143,10 +115,9 @@ panasonic+toshiba
 """
 
 
-# @measure_execution_time
-@measure_memory_usage
-def job():
-    previous_data = load_previous_data("previous_data.json")
+def job(event, context):
+    bucket_name = os.environ.get("BUCKET_NAME")  # 環境変数からバケット名を取得
+    previous_data = load_previous_data(bucket_name, "previous_data.json")
 
     """スクレイピング設定"""
     location = "all"
@@ -154,7 +125,7 @@ def job():
     genre = "1255"
     min = "0"
     max = "10000"
-    keyword = "テーブル"
+    keyword = "flexispot"
 
     encoded_keyword = quote(keyword)
     url = f"https://jmty.jp/{location}/sale-{category}/g-{genre}?min={min}&max={max}&keyword={encoded_keyword}"
@@ -166,26 +137,19 @@ def job():
 
     if new_items:
         try:
+            '''storage調べてから
             gc = service_account(
                 filename="/Users/shee/dev/secret/spreadsheet-test-409604-7d92c4af7ade.json"
             )
             worksheet = gc.open_by_key(os.environ.get("SPREADSHEET_KEY")).sheet1
             update_spreadsheet(worksheet, new_items, previous_data)
+            '''
             # LINE Notifyに新しい商品の情報を送る
             send_line_notify(keyword, new_items, os.environ.get("LINE_TOKEN"))
             # previous_dataを更新し、新しい商品の情報を含める
             for item in new_items:
                 previous_data[item["商品URL"]] = item
+            # 更新されたprevious_dataをCloud Storageに保存
+            save_previous_data(bucket_name, "previous_data.json", previous_data)
         except Exception as e:
             print(f"エラー発生: {e}")
-
-        # 更新されたprevious_dataをファイルに保存
-        with open("previous_data.json", "w") as file:
-            json.dump(previous_data, file, ensure_ascii=False)
-
-
-schedule.every(1).minutes.do(job)
-
-while True:
-    schedule.run_pending()
-    time.sleep(1)
